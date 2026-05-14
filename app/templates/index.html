@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Mechanical Activation Calculator</title>
+    <!-- Используем надежный CDN вместо заблокированного -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.1/plotly.min.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f0f2f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #1a237e;
+            border-bottom: 3px solid #3949ab;
+            padding-bottom: 10px;
+        }
+        .subtitle {
+            color: #555;
+            margin-bottom: 20px;
+        }
+        
+        .samples-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .sample-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-left: 5px solid #3949ab;
+        }
+        .sample-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .sample-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #1a237e;
+        }
+        .remove-sample {
+            background: #B7241D;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            width: auto;
+            min-width: 60px;
+            height: 30px;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 0 12px;
+        }
+        .sample-inputs {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .input-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .input-group label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .input-group input, .input-group select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-family: monospace;
+        }
+        .data-group {
+            margin-top: 15px;
+        }
+        .data-group label {
+            font-size: 12px;
+            color: #666;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .data-group textarea {
+            width: 100%;
+            height: 80px;
+            font-family: monospace;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: #3949ab;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #1a237e;
+        }
+        .btn-secondary {
+            background: #ff9800;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #f57c00;
+        }
+        .btn-add {
+            background: #059669;
+            color: white;
+        }
+        
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            display: none;
+            border-left: 4px solid #c62828;
+        }
+        .info {
+            background: #e8eaf6;
+            color: #1a237e;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        
+        .graphs-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 30px;
+        }
+        .graph-card {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .graph-card h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        
+        @media (max-width: 800px) {
+            .graphs-container { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>⚛️ Mechanical Activation Calculator</h1>
+    <div class="subtitle">Расчёт параметров решётки и скорости механоактивации через межплоскостные расстояния</div>
+    
+    <div id="error" class="error"></div>
+    <div id="info" class="info" style="display: none;"></div>
+
+    <div id="samples-container" class="samples-panel"></div>
+    
+    <div class="controls">
+        <button class="btn-add" onclick="addSample()">+ Добавить образец</button>
+        <button class="btn-primary" onclick="calculateAll()">📊 Рассчитать все</button>
+        <button class="btn-secondary" onclick="clearGraphs()">🗑 Очистить графики</button>
+    </div>
+    
+    <div id="graphs-container" class="graphs-container"></div>
+</div>
+
+<script>
+    let sampleCounter = 0;
+    let samples = [];
+    
+    function initSamples() {
+    samples = [
+        {
+            id: sampleCounter++,
+            name: "TaN_a",
+            crystal_system: "hexagonal",
+            h: 1, k: 1, l: 0,
+            d_values: "2.5958, 2.5938, 2.5885, 2.5858, 2.583, 2.5829, 2.5903, 2.5884, 2.5561, 2.5849",
+            time_values: "0, 15, 30, 45, 60, 75, 90, 105, 120, 135",
+            a_parameter: ""
+        },
+        {
+            id: sampleCounter++,
+            name: "TaN_c",
+            crystal_system: "hexagonal",
+            h: 0, k: 0, l: 1,
+            d_values: "2.9394, 2.9401, 2.9373, 2.936, 2.9457, 2.9355, 2.9445, 2.9434, 2.9397, 2.9383",
+            time_values: "0, 15, 30, 45, 60, 75, 90, 105, 120, 135",
+            a_parameter: ""  // Будет заполнено после расчёта TaN_a
+        },
+        {
+            id: sampleCounter++,
+            name: "HfC",
+            crystal_system: "cubic",
+            h: 1, k: 1, l: 1,
+            d_values: "2.6803, 2.6814, 2.6775, 2.6787, 2.6877, 2.6766, 2.6842, 2.6831, 2.6805, 2.6757",
+            time_values: "0, 15, 30, 45, 60, 75, 90, 105, 120, 135",
+            a_parameter: ""
+        }
+    ];
+    renderSamples();
+}
+    
+    function addSample() {
+        samples.push({
+            id: sampleCounter++,
+            name: `Sample_${sampleCounter}`,
+            crystal_system: "cubic",
+            h: 1, k: 1, l: 1,
+            d_values: "2.5 2.4 2.3",
+            time_values: "0 10 20",
+            a_parameter: ""
+        });
+        renderSamples();
+    }
+    
+    function removeSample(id) {
+        samples = samples.filter(s => s.id !== id);
+        renderSamples();
+    }
+    
+    function updateSample(id, field, value) {
+        const sample = samples.find(s => s.id === id);
+        if (sample) {
+            if (field === 'h' || field === 'k' || field === 'l') {
+                sample[field] = parseInt(value) || 0;
+            } else {
+                sample[field] = value;
+            }
+        }
+    }
+    
+    function renderSamples() {
+        const container = document.getElementById('samples-container');
+        container.innerHTML = samples.map(sample => `
+            <div class="sample-card">
+                <div class="sample-header">
+                    <div class="sample-title">🔬 Material ${samples.findIndex(s => s.id === sample.id) + 1}</div>
+                    <button class="remove-sample" onclick="removeSample(${sample.id})">✖</button>
+                </div>
+                <div class="sample-inputs">
+                    <div class="input-group">
+                        <label>Название</label>
+                        <input type="text" value="${sample.name}" 
+                               onchange="updateSample(${sample.id}, 'name', this.value)">
+                    </div>
+                    <div class="input-group">
+                        <label>Сингония</label>
+                        <select onchange="updateSample(${sample.id}, 'crystal_system', this.value)">
+                            <option value="cubic" ${sample.crystal_system === 'cubic' ? 'selected' : ''}>Кубическая</option>
+                            <option value="hexagonal" ${sample.crystal_system === 'hexagonal' ? 'selected' : ''}>Гексагональная</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>h</label>
+                        <input type="number" value="${sample.h}" 
+                               onchange="updateSample(${sample.id}, 'h', this.value)">
+                    </div>
+                    <div class="input-group">
+                        <label>k</label>
+                        <input type="number" value="${sample.k}" 
+                               onchange="updateSample(${sample.id}, 'k', this.value)">
+                    </div>
+                    <div class="input-group">
+                        <label>l</label>
+                        <input type="number" value="${sample.l}" 
+                               onchange="updateSample(${sample.id}, 'l', this.value)">
+                    </div>
+                </div>
+                <div class="data-group">
+                    <label>📏 d-hkl (Å) — через пробел или запятую</label>
+                    <textarea onchange="updateSample(${sample.id}, 'd_values', this.value)">${sample.d_values}</textarea>
+                </div>
+                <div class="data-group">
+                    <label>⏱ Time values (min) — через пробел или запятую</label>
+                    <textarea onchange="updateSample(${sample.id}, 'time_values', this.value)">${sample.time_values}</textarea>
+                </div>
+            </div>
+        `).join('');
+    }
+    
+    // Функция парсинга - конвертирует строку в массив чисел
+    function parseNumbers(str) {
+        if (typeof str === 'string') {
+            return str.split(/[\s,]+/).map(x => parseFloat(x.trim())).filter(x => !isNaN(x));
+        }
+        if (Array.isArray(str)) {
+            return str;
+        }
+        return [];
+    }
+    
+    function showError(msg) {
+        const errDiv = document.getElementById('error');
+        errDiv.textContent = msg;
+        errDiv.style.display = 'block';
+        setTimeout(() => errDiv.style.display = 'none', 5000);
+    }
+    
+    function showInfo(msg) {
+        const infoDiv = document.getElementById('info');
+        infoDiv.textContent = msg;
+        infoDiv.style.display = 'block';
+        setTimeout(() => infoDiv.style.display = 'none', 3000);
+    }
+    
+    async function calculateAll() {
+        console.log("Начинаем расчет...");
+        
+        // Собираем данные
+        const requestSamples = [];
+        
+        for (const sample of samples) {
+            // Парсим d_values и time_values из строк
+            const d_values = parseNumbers(sample.d_values);
+            const time_values = parseNumbers(sample.time_values);
+            
+            console.log(`Образец ${sample.name}:`, {d_values, time_values});
+            
+            if (d_values.length === 0) {
+                showError(`Образец "${sample.name}": нет d-values`);
+                return;
+            }
+            if (time_values.length === 0) {
+                showError(`Образец "${sample.name}": нет time-values`);
+                return;
+            }
+            if (d_values.length !== time_values.length) {
+                showError(`Образец "${sample.name}": d (${d_values.length}) и time (${time_values.length}) разной длины`);
+                return;
+            }
+            
+            // Парсим a_parameter если есть
+            let a_parameter = null;
+            if (sample.a_parameter && sample.a_parameter.trim()) {
+                a_parameter = parseFloat(sample.a_parameter);
+                if (isNaN(a_parameter)) a_parameter = null;
+            }
+            
+            requestSamples.push({
+                name: sample.name,
+                crystal_system: sample.crystal_system,
+                h: parseInt(sample.h) || 0,
+                k: parseInt(sample.k) || 0,
+                l: parseInt(sample.l) || 0,
+                d_values: d_values,
+                time_values: time_values,
+                a_parameter: a_parameter
+            });
+        }
+        
+        showInfo(`Отправка ${requestSamples.length} образцов...`);
+        
+        try {
+            const response = await fetch('/calculate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ samples: requestSamples })
+            });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
+            
+            const results = await response.json();
+            console.log('Результаты:', results);
+            renderGraphs(results);
+            showInfo(`✅ Успешно рассчитано ${results.length} образцов`);
+            
+        } catch (err) {
+            console.error('Ошибка:', err);
+            showError(`Ошибка: ${err.message}`);
+        }
+    }
+    
+    function renderGraphs(results) {
+        const container = document.getElementById('graphs-container');
+
+        if (!results || results.length === 0) {
+            container.innerHTML = '<div class="info">Нет данных для отображения</div>';
+            return;
+        }
+
+        container.innerHTML = '';
+
+        for (const result of results) {
+            // Проверка на ошибку
+            if (result.parameter_type === "error") {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error';
+                errorDiv.textContent = `❌ ${result.sample_name}: ${result.error || 'Ошибка расчета'}`;
+                errorDiv.style.display = 'block';
+                container.appendChild(errorDiv);
+                continue;
+            }
+
+            const paramType = result.parameter_type;
+
+            // Индексы для оси X
+            const timeValues = result.time_values || result.lattice_parameters.map((_, idx) => idx);
+
+            const traceParams = {
+                x: timeValues,
+                y: result.lattice_parameters,
+                mode: 'lines+markers',
+                name: `${result.sample_name} - ${paramType}`,
+                line: { width: 2, color: '#3949ab' },
+                marker: { size: 8, color: '#3949ab' }
+            };
+
+            const traceDeviations = {
+                x: timeValues,
+                y: result.deviations,
+                mode: 'lines+markers',
+                name: `${result.sample_name} - отклонение`,
+                line: { dash: 'dash', width: 2, color: '#ff9800' },
+                marker: { size: 6, color: '#ff9800' },
+                yaxis: 'y2'
+            };
+
+            const layout = {
+                xaxis: { title: 'Время (min)' },
+                yaxis: { color: '#3949ab' },
+                yaxis2: {
+                    overlaying: 'y',
+                    side: 'right',
+                    color: '#ff9800'
+                },
+                legend: {
+                    font: { size: 10 },           // ← размер шрифта легенды
+                    orientation: 'h',              // ← горизонтальная ориентация
+                    yanchor: 'bottom',
+                    y: 1,                      // ← положение под графиком
+                    xanchor: 'center',
+                    x: 0.5
+                },
+                hovermode: 'closest',
+                height: 400,
+                margin: { l: 50, r: 70, t: 40, b: 40 }
+            };
+
+            const graphDiv = document.createElement('div');
+            graphDiv.className = 'graph-card';
+            graphDiv.innerHTML = `<h3>${result.sample_name}</h3><div id="graph-${result.sample_name.replace(/\s/g, '_')}" style="height: 400px;"></div>`;
+            container.appendChild(graphDiv);
+
+            Plotly.newPlot(
+                graphDiv.querySelector('div'),
+                [traceParams, traceDeviations],
+                layout,
+                { responsive: true }
+            );
+        }
+    }
+    
+    function clearGraphs() {
+        document.getElementById('graphs-container').innerHTML = '';
+        showInfo('Графики очищены');
+    }
+    
+    // Запуск при загрузке страницы
+    initSamples();
+</script>
+</body>
+</html>
